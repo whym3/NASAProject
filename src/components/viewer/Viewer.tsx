@@ -492,7 +492,7 @@ export function Viewer({ initial, embed = false }: { initial: ViewParams; embed?
           )}
           {!epoch && (
             <p className="plate__msg">
-              {error ? error : empty ? `No detector ${det} exposures cover this position yet.` : records ? 'Reading pixels from the archive' : 'Asking the archive which exposures cover this position'}
+              {error ? error : empty ? `No detector ${det} exposures cover this position yet.` : records ? 'Reading pixels from the archive' : 'Asking the archive which exposures cover this position. This can take up to a minute.'}
             </p>
           )}
           {epoch && <button type="button" className={`plate__hit${report === 'picking' ? ' is-picking' : ''}`} onClick={clickPlate} aria-label={report === 'picking' ? 'Click the object you want to report' : 'Mark a position on the plate'} />}

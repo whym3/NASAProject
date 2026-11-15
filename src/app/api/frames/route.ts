@@ -5,7 +5,10 @@ import { NextResponse } from 'next/server';
 import { COLLECTIONS, siaUrl } from '@/config/releases';
 import { parseSia } from '@/lib/frames';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
+// IRSA either refuses at once (502, 503) or answers slowly: 20 s and more is common. So keep
+// asking until just short of the route's own limit, and give a slow answer all the time left.
+const BUDGET = 55000;
 
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
@@ -16,10 +19,11 @@ export async function GET(req: Request) {
   }
   // Round to about 0.4 arcsec so nearby requests share a cache entry.
   const url = siaUrl(Math.round(ra * 1e4) / 1e4, Math.round(dec * 1e4) / 1e4);
+  const started = Date.now(), left = () => BUDGET - (Date.now() - started);
   let lastStatus = 0;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; left() > 3000; attempt++) {
     try {
-      const res = await fetch(url, { next: { revalidate: 6 * 3600 }, signal: AbortSignal.timeout(20000) });
+      const res = await fetch(url, { next: { revalidate: 6 * 3600 }, signal: AbortSignal.timeout(left()) });
       lastStatus = res.status;
       if (res.ok) {
         const text = await res.text();
@@ -34,7 +38,7 @@ export async function GET(req: Request) {
     } catch {
       lastStatus = 0;
     }
-    await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, Math.min(1200 * (attempt + 1), Math.max(0, left() - 3000))));
   }
   return NextResponse.json(
     { error: 'The SPHEREx archive at IRSA did not answer. It is often busy; try again in a few seconds.', status: lastStatus },
