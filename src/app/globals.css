@@ -183,6 +183,8 @@ html:not([data-epoch]) .lamp i:first-child { background: var(--c-fg); }
 .site-nav a:hover .hop__t, .site-nav a:focus-visible .hop__t { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
 .site-nav { display: flex; gap: clamp(1rem, 2.4vw, 2.25rem); align-items: center; }
 .site-nav a { display: inline-flex; align-items: center; min-height: 2.75rem; font-weight: 520; }
+.site-nav__repo { justify-content: center; min-width: 1.75rem; }
+.site-nav__repo:hover, .site-nav__repo:focus-visible { color: var(--c-mark); }
 main { padding-top: var(--header-h); }
 body:not(:has(.site-header)) main { padding-top: 0; }
 @media (max-width: 640px) {

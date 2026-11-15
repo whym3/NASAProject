@@ -24,6 +24,7 @@ export function Footer() {
       </div>
       <div className="site-footer__col">
         <p>Made for NASA Space Apps 2026{site.team.placeholder ? '' : ` by ${site.team.name}`}.</p>
+        <a href={site.repoUrl} target="_blank" rel="noopener noreferrer">Source code on GitHub</a>
         <p className="muted">Images: NASA, JPL-Caltech, IPAC.</p>
       </div>
       <p className="site-footer__fine">SPHEREx is a joint project of the Jet Propulsion Laboratory and Caltech, funded by NASA. Full data credits are on the method page. This site is a hackathon entry and is not endorsed by NASA.</p>
