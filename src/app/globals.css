@@ -603,7 +603,12 @@ html.film-on body::before { background: #000; }
 .film__clock { left: 50%; bottom: 3.5rem; translate: -50% 0; font-size: clamp(1.25rem, 0.8rem + 1.5vw, 2rem); font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; }
 .film__mission { left: 50%; bottom: 2.35rem; translate: -50% 0; font-size: 0.625rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgb(231 233 230 / 0.5); white-space: nowrap; }
 .film__hint { left: var(--gutter); bottom: 1.15rem; font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgb(231 233 230 / 0.45); }
-.film__skip { right: var(--gutter); bottom: 0.85rem; pointer-events: auto; }
+.film__controls { right: var(--gutter); bottom: 0.85rem; display: flex; gap: 0.5rem; pointer-events: auto; }
+.film__play { min-width: 5.5em; }
+/* PUNCH flashes: each satellite lights up once, in turn, after it leaves the stage. */
+.film__flash { width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.film__flash g { will-change: opacity; }
+.film__flash-ring { fill: none; stroke: var(--glass); stroke-width: 1.25; }
 @media (max-width: 640px) {
   /* No room for every label: only the event just passed is named. */
   .film__event text { opacity: 0; }

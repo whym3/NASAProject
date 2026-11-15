@@ -7,7 +7,7 @@
 // `/?film=0.6` holds the film at that film time (see beats.ts), for checking a single frame.
 import { gsap } from 'gsap';
 import { useEffect, useRef } from 'react';
-import { EVENTS, STRETCH, filmTime, formatClock, missionClock, picture, scrollOf } from '@/film/beats';
+import { BLINK, EVENTS, STRETCH, filmTime, formatClock, missionClock, picture, scrollOf } from '@/film/beats';
 import { bridge } from '@/film/bridge';
 import type { Film } from '@/film/scene';
 
@@ -19,6 +19,9 @@ const UNDER = [false, false, true, false, true, false];
 // Name tags: a dot on the thing, a short leader line, the name. The rocket at the start; each
 // satellite once it is flying free. PUNCH is one narrow-field and three wide-field imagers; which
 // of the four sat where on the ring is not published, so that assignment is ours.
+// Play runs the film by itself: the whole scroll in this many seconds, at half pace while the
+// PUNCH satellites flash so each flash can be seen.
+const PLAY_SECONDS = 40;
 const NAMES = ['Falcon 9', 'SPHEREx', 'PUNCH NFI', 'PUNCH WFI-1', 'PUNCH WFI-2', 'PUNCH WFI-3'];
 
 export function LaunchFilm() {
@@ -30,6 +33,8 @@ export function LaunchFilm() {
   const now = useRef<SVGCircleElement>(null);
   const clock = useRef<HTMLParagraphElement>(null);
   const skip = useRef<HTMLButtonElement>(null);
+  const play = useRef<HTMLButtonElement>(null);
+  const flash = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -39,6 +44,14 @@ export function LaunchFilm() {
     const held = new URLSearchParams(location.search).get('film');
     let target = 0, p = 0; // scroll progress, 0 to 1
     let film: Film | null = null, ended = false, passed = -1, second = -1, touchY = 0;
+    let playing = false, last = 0; // Play: the film runs by itself until the user scrolls
+    const setPlaying = (on: boolean) => {
+      playing = on;
+      const b = play.current;
+      if (!b) return;
+      b.textContent = on ? 'Pause' : 'Play';
+      b.setAttribute('aria-pressed', String(on));
+    };
     // The name tags' positions, lightly smoothed (they already ignore the camera's shake; see
     // scene.ts), so the last frame-to-frame flutter goes too.
     const calm = new Float32Array(14).fill(NaN);
@@ -56,7 +69,7 @@ export function LaunchFilm() {
       svg.querySelectorAll('g').forEach((g, i) => { const q = along(MARKS[i]); g.setAttribute('transform', `translate(${q.x} ${q.y})`); });
     };
 
-    const move = (by: number) => { if (held === null && !ended) target = Math.min(1, Math.max(0, target + by)); };
+    const move = (by: number) => { if (playing) setPlaying(false); if (held === null && !ended) target = Math.min(1, Math.max(0, target + by)); };
     // Capture and stop: the page's own smooth scroll must not see these while the film runs.
     const wheel = (e: WheelEvent) => {
       e.preventDefault(); e.stopPropagation();
@@ -71,7 +84,7 @@ export function LaunchFilm() {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') return end();
       const step = ({ ArrowDown: 0.03, PageDown: 0.1, ' ': 0.1, ArrowUp: -0.03, PageUp: -0.1 } as Record<string, number>)[e.key];
-      if (step === undefined || e.target === skip.current) return;
+      if (step === undefined || e.target === skip.current || e.target === play.current) return;
       e.preventDefault(); e.stopPropagation();
       move(step);
     };
@@ -79,6 +92,12 @@ export function LaunchFilm() {
 
     const tick = () => {
       if (!film) return;
+      const clockNow = gsap.ticker.time, dt = Math.min(0.1, clockNow - last);
+      last = clockNow;
+      if (playing) {
+        const slow = filmTime(p) > BLINK[0] - 0.006 && filmTime(p) < BLINK[1] + 0.004 ? 0.5 : 1;
+        target = Math.min(1, target + (dt * slow) / PLAY_SECONDS);
+      }
       p += (target - p) * 0.12;
       const t = held === null ? filmTime(p) : Number(held) || 0;
       if (held !== null) p = scrollOf(t);
@@ -107,6 +126,21 @@ export function LaunchFilm() {
         text.setAttribute('x', String(ex + sx * 4));
         text.setAttribute('y', String(ey - 6));
         text.setAttribute('text-anchor', sx > 0 ? 'start' : 'end');
+      });
+
+      // The PUNCH flashes: a soft glow that swells and fades on the satellite, and a ring that
+      // spreads out from it, one satellite after another.
+      flash.current?.querySelectorAll('g').forEach((g, i) => {
+        const u = pic.blink[i];
+        if (u <= 0 || u >= 1) { g.style.opacity = '0'; return; }
+        const swell = Math.sin(Math.PI * u), x = at[(i + 2) * 2], y = at[(i + 2) * 2 + 1];
+        g.style.opacity = '1';
+        g.setAttribute('transform', `translate(${x} ${y})`);
+        const [glow, ring] = g.children;
+        glow.setAttribute('r', String(8 + 22 * swell));
+        glow.setAttribute('opacity', String(swell));
+        ring.setAttribute('r', String(6 + 44 * u));
+        ring.setAttribute('opacity', String((1 - u) * Math.min(1, u * 5)));
       });
 
       // Timeline: the marker, the travelled part of the track, the events behind us, the clock.
@@ -154,6 +188,9 @@ export function LaunchFilm() {
     addEventListener('resize', resize);
     const button = skip.current;
     button?.addEventListener('click', end);
+    const toggle = () => { if (held === null && !ended) setPlaying(!playing); };
+    const playButton = play.current;
+    playButton?.addEventListener('click', toggle);
 
     import('@/film/scene')
       .then(({ createFilm }) => {
@@ -169,6 +206,7 @@ export function LaunchFilm() {
 
     return () => {
       button?.removeEventListener('click', end);
+      playButton?.removeEventListener('click', toggle);
       // Leaving the page finishes the opening; a development re-mount (the film is still in the
       // document a moment later) does not.
       if (stop()) setTimeout(() => { if (!document.querySelector('.film')) bridge.finish(); }, 60);
@@ -188,6 +226,21 @@ export function LaunchFilm() {
           </g>
         ))}
       </svg>
+      <svg ref={flash} className="film__flash" aria-hidden="true">
+        <defs>
+          <radialGradient id="film-flash">
+            <stop offset="0" stopColor="#fff" stopOpacity="1" />
+            <stop offset="0.35" stopColor="#fff6e6" stopOpacity="0.7" />
+            <stop offset="1" stopColor="#fff6e6" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        {NAMES.slice(2).map((name) => (
+          <g key={name} style={{ opacity: 0 }}>
+            <circle className="film__flash-glow" fill="url(#film-flash)" />
+            <circle className="film__flash-ring" />
+          </g>
+        ))}
+      </svg>
       <div className="film__hud">
         <svg ref={arc} className="film__arc" aria-hidden="true">
           <path className="film__arc-track" />
@@ -202,8 +255,11 @@ export function LaunchFilm() {
         </svg>
         <p ref={clock} className="film__clock mono" aria-hidden="true">T+00:00:40</p>
         <p className="film__mission mono">SPHEREx / PUNCH · Falcon 9 · 11 March 2025</p>
-        <p className="film__hint mono">Scroll</p>
-        <button ref={skip} type="button" className="btn btn--quiet film__skip">Skip</button>
+        <p className="film__hint mono">Scroll or press Play</p>
+        <div className="film__controls">
+          <button ref={play} type="button" className="btn btn--quiet film__play" aria-pressed="false">Play</button>
+          <button ref={skip} type="button" className="btn btn--quiet film__skip">Skip</button>
+        </div>
       </div>
     </div>
   );

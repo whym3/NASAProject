@@ -51,6 +51,9 @@ const MECO = 0.42; // booster cut-off and separation
 const NOSE = 0.56; // fairing halves part
 const RELEASE = 0.68;
 const PUNCH = [0.745, 0.765]; // the four PUNCH satellites leave the stage in two pairs
+// Once both PUNCH pairs are clear of the stage and named, each satellite flashes once, in turn,
+// so the eye finds all four before SPHEREx turns to face us.
+export const BLINK = [0.772, 0.8] as const;
 const DARK = 0.94; // inside the telescope: the frame is fully dark
 const SETTLED = 0.62; // the roll has stopped, with the solar array turned to the Sun
 const ROLL_END = 3.362; // radians: the attitude that puts the array on the Sun's side
@@ -119,6 +122,8 @@ export interface Picture {
   punch: [number, number];
   /** How strongly each name is shown, 0 to 1: the rocket, SPHEREx, the first PUNCH pair, the second. */
   names: [number, number, number, number];
+  /** How far each PUNCH satellite is through its one flash, 0 (not yet) to 1 (over). */
+  blink: [number, number, number, number];
   dive: number; // 0 to 1: the camera's run down the cone
   dark: number; // 1 = frame covered
   done: boolean; // past the dark: only the stars are left
@@ -174,6 +179,7 @@ export function picture(p: number): Picture {
       smooth(PUNCH[0] + 0.004, PUNCH[0] + 0.016, p) * (1 - smooth(0.805, 0.825, p)),
       smooth(PUNCH[1] + 0.004, PUNCH[1] + 0.016, p) * (1 - smooth(0.805, 0.825, p)),
     ],
+    blink: [0, 1, 2, 3].map((i) => { const w = (BLINK[1] - BLINK[0]) / 4; return span(BLINK[0] + i * w, BLINK[0] + (i + 1) * w, p); }) as Picture['blink'],
     dive: smooth(0.84, DARK, p),
     dark: smooth(0.89, DARK, p),
     done: p >= DARK + 0.01,
