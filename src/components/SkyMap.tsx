@@ -72,6 +72,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const satEl = useRef<HTMLButtonElement>(null);
   const satLabel = useRef<HTMLSpanElement>(null);
   const following = useRef(false); // the view is riding along with it
+  const flight = useRef<gsap.core.Tween | null>(null); // the move to SPHEREx or to the Milky Way, while it runs
   const [satImg, setSatImg] = useState<string | null>(null);
   const askedImg = useRef(false);
   const [found, setFound] = useState(0);
@@ -449,17 +450,25 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
     const later = window.setTimeout(() => {
       if (!askedImg.current) { askedImg.current = true; import('@/sky/portrait').then((m) => m.craftPortrait()).then(setSatImg).catch(() => { askedImg.current = false; }); }
     }, 3400);
-    return () => { dead = true; following.current = false; clearInterval(timer); clearTimeout(later); };
+    return () => { dead = true; following.current = false; flight.current?.kill(); flight.current = null; clearInterval(timer); clearTimeout(later); };
   }, [full]);
 
-  // Turn to SPHEREx, close in on it, and ride along until the sky is next dragged.
+  // Stop riding along with SPHEREx, and stop a move to it or to the Milky Way that is still running:
+  // the move to SPHEREx starts the ride when it ends, so it must not finish after the visitor has gone elsewhere.
+  const letGo = () => {
+    following.current = false;
+    flight.current?.kill();
+    flight.current = null;
+  };
+
+  // Turn to SPHEREx, close in on it, and ride along until the visitor next moves the sky.
   const findSat = () => {
     const v = view.current, el = satEl.current;
     if (!el || el.hidden) return;
     setPick(null);
-    following.current = false;
+    letGo();
     const from = { ra: v.ra, dec: v.dec, fov: v.fov }, t = { k: 0 };
-    gsap.to(t, {
+    flight.current = gsap.to(t, {
       k: 1, duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1.8, ease: 'power2.inOut', overwrite: true,
       onUpdate: () => { // aim at where it is now, not where it was when the move began
         const ra = Number(el.dataset.ra), dec = Number(el.dataset.dec), dra = ((ra - from.ra + 540) % 360) - 180;
@@ -478,10 +487,11 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const centreMilkyWay = () => {
     const v = view.current;
     setPick(null);
+    letGo();
     const dra = ((GALACTIC_CENTRE.ra - v.ra + 540) % 360) - 180;
     const from = { ra: v.ra, dec: v.dec, fov: v.fov }, t = { k: 0 };
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    gsap.to(t, {
+    flight.current = gsap.to(t, {
       k: 1, duration: reduced ? 0 : 1.6, ease: 'power2.inOut', overwrite: true,
       onUpdate: () => {
         v.ra = (from.ra + dra * t.k + 360) % 360;
@@ -504,7 +514,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const onDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     drag.current = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId };
-    following.current = false;
+    letGo();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     touched.current = gsap.ticker.time;
   };
@@ -538,6 +548,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
 
   const nudge = (dra: number, ddec: number, zoom = 1) => {
     const v = view.current;
+    if (dra || ddec) letGo(); // turning the sky leaves SPHEREx; zooming alone keeps riding with it
     v.fov = Math.min(FOV_MAX, Math.max(FOV_MIN, v.fov * zoom));
     const p = pan(v, (dra * Math.min(v.width, v.height)) / 6, (ddec * Math.min(v.width, v.height)) / 6);
     v.ra = p.ra; v.dec = p.dec;
