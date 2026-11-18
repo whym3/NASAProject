@@ -13,6 +13,7 @@ import { FOV_MAX, FOV_MIN, pan, toScreen, toSky, type View } from '@/sky/project
 import type { Sky } from '@/sky/scene';
 import { OPEN_FULL_SKY } from './FullSkyLink';
 import { Hop } from './Hop';
+import { SolarSystem } from './SolarSystem';
 
 export interface FreshField { ra: number; dec: number; date: string; count: number }
 
@@ -57,6 +58,10 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [full, setFullState] = useState(false);
   const fullRef = useRef(false);
+  // Full screen shows one of two scales: the sky from here, or the Solar System from outside.
+  const [scale, setScaleState] = useState<'sky' | 'solar'>('sky');
+  const scaleRef = useRef<'sky' | 'solar'>('sky');
+  const setScale = useCallback((next: 'sky' | 'solar') => { scaleRef.current = next; setScaleState(next); dirty.current = true; }, []);
   const leaving = useRef(false); // the move back out is playing
   const swingTween = useRef<gsap.core.Tween | null>(null);
   const home = useRef<{ ra: number; dec: number; fov: number } | null>(null); // the view full screen began from
@@ -128,7 +133,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   // Where the pointer is on the sky, written straight to the readout (no re-render per move).
   const track = (e: React.PointerEvent) => {
     const out = readout.current, el = host.current;
-    if (!out || !el) return;
+    if (!out || !el || scaleRef.current === 'solar') return;
     const r = el.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const s = toSky(view.current, x, y);
@@ -227,7 +232,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
     let frame = 0, scan = 0;
     const tick = (time: number) => {
       const s = sky.current;
-      if (!s || (!visible && !fullscreen) || document.hidden) return;
+      if (!s || (!visible && !fullscreen) || document.hidden || scaleRef.current === 'solar') return;
       if (light && !fullscreen && !dirty.current && frame++ % 2) return;
       const v = view.current;
       // Idle: the sky turns very slowly until someone touches it.
@@ -382,6 +387,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const setFull = useCallback((next: boolean) => {
     if (fullRef.current === next || leaving.current) return;
     if (next) { applyFull(true); return; }
+    setScale('sky'); // the sky glides home on the way out
     leaving.current = true;
     // The page's own text fades back in slowly while the sky is still gliding home, so it is
     // already there when the move ends; the menu follows.
@@ -400,7 +406,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
       html.classList.remove('sky-leaving');
       setTimeout(() => html.classList.remove('sky-return'), 2400);
     }); // back the way we came, then leave
-  }, [applyFull, swing]);
+  }, [applyFull, swing, setScale]);
   useEffect(() => {
     const onFs = () => { if (!document.fullscreenElement) setFull(false); };
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && fullRef.current && !pickRef.current) setFull(false); };
@@ -603,7 +609,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
 
   const at = pick ? (pick.kind === 'star' ? pick.star : pick) : null;
   return (
-    <div className="sky" ref={host} data-state={state} data-lines={linesOn ? '' : undefined} onPointerMove={track} onPointerDown={track}>
+    <div className="sky" ref={host} data-state={state} data-scale={full ? scale : undefined} data-lines={linesOn ? '' : undefined} onPointerMove={track} onPointerDown={track}>
       <canvas ref={canvas} className="sky__canvas" aria-hidden="true" />
       <div
         className="sky__pad" role="application" tabIndex={0}
@@ -673,6 +679,13 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
         </div>
       )}
 
+      {full && scale === 'solar' && <SolarSystem />}
+      {full && (
+        <div className="seg sky__scale" role="group" aria-label="View">
+          <button type="button" aria-pressed={scale === 'sky'} onClick={() => setScale('sky')}>Sky</button>
+          <button type="button" aria-pressed={scale === 'solar'} onClick={() => { setPick(null); letGo(); setScale('solar'); }}>Solar System</button>
+        </div>
+      )}
       <div className="sky__tools" role="group" aria-label="Map controls">
         <button type="button" className="sky__fullbtn" onClick={() => setFull(!full)} aria-pressed={full} aria-label={full ? 'Leave full screen' : 'Explore the full sky'}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -682,21 +695,23 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
           </svg>
           <span>{full ? 'Exit' : 'Explore the full sky'}</span>
         </button>
-        <button type="button" onClick={() => nudge(0, 0, 0.75)} aria-label="Zoom in">+</button>
-        <button type="button" onClick={() => nudge(0, 0, 1.33)} aria-label="Zoom out">&minus;</button>
-        <button type="button" onClick={() => nudge(1, 0)} aria-label="Turn east">&larr;</button>
-        <button type="button" onClick={() => nudge(-1, 0)} aria-label="Turn west">&rarr;</button>
-        <button type="button" onClick={() => nudge(0, 1)} aria-label="Turn north">&uarr;</button>
-        <button type="button" onClick={() => nudge(0, -1)} aria-label="Turn south">&darr;</button>
-        {full && <button type="button" className="sky__linesbtn" onClick={centreMilkyWay} aria-label="Centre the Milky Way">Milky Way</button>}
-        {full && <button type="button" className="sky__linesbtn" onClick={findSat} aria-label="Go to SPHEREx, where it is right now">SPHEREx</button>}
-        {full && atlas && (
-          <button type="button" className="sky__linesbtn" onClick={toggleLines} aria-pressed={linesOn} aria-label={linesOn ? 'Hide the constellation lines' : 'Show all constellation lines'}>Lines</button>
-        )}
+        {scale === 'sky' && (<>
+          <button type="button" onClick={() => nudge(0, 0, 0.75)} aria-label="Zoom in">+</button>
+          <button type="button" onClick={() => nudge(0, 0, 1.33)} aria-label="Zoom out">&minus;</button>
+          <button type="button" onClick={() => nudge(1, 0)} aria-label="Turn east">&larr;</button>
+          <button type="button" onClick={() => nudge(-1, 0)} aria-label="Turn west">&rarr;</button>
+          <button type="button" onClick={() => nudge(0, 1)} aria-label="Turn north">&uarr;</button>
+          <button type="button" onClick={() => nudge(0, -1)} aria-label="Turn south">&darr;</button>
+          {full && <button type="button" className="sky__linesbtn" onClick={centreMilkyWay} aria-label="Centre the Milky Way">Milky Way</button>}
+          {full && <button type="button" className="sky__linesbtn" onClick={findSat} aria-label="Go to SPHEREx, where it is right now">SPHEREx</button>}
+          {full && atlas && (
+            <button type="button" className="sky__linesbtn" onClick={toggleLines} aria-pressed={linesOn} aria-label={linesOn ? 'Hide the constellation lines' : 'Show all constellation lines'}>Lines</button>
+          )}
+        </>)}
       </div>
-      {full && atlas && <p className="sky__found" aria-live="polite">{found} of {atlas.ids.length} constellations found</p>}
-      {full && <p className="sky__readout" ref={readout} aria-hidden="true">Point at the sky for coordinates</p>}
-      {full && <p className="sky__hint">Turn the sky to find the constellations. Click any star, or any spot, to blink it. Esc leaves full screen.</p>}
+      {full && scale === 'sky' && atlas && <p className="sky__found" aria-live="polite">{found} of {atlas.ids.length} constellations found</p>}
+      {full && scale === 'sky' && <p className="sky__readout" ref={readout} aria-hidden="true">Point at the sky for coordinates</p>}
+      {full && scale === 'sky' && <p className="sky__hint">Turn the sky to find the constellations. Click any star, or any spot, to blink it. Esc leaves full screen.</p>}
       {state === 'nogl' && <p className="sky__fallback">This is a still picture of the sky: the live map needs WebGL, which this browser has switched off. The search box and the list of stars below work without it.</p>}
     </div>
   );

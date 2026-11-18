@@ -1114,3 +1114,26 @@ html.sky-leaving .sky { background-color: var(--emulsion); }
 .sky__satlabel em { font-style: normal; letter-spacing: 0; color: var(--c-muted); opacity: var(--near); white-space: normal; width: 22rem; max-width: 60vw; }
 .sky__sat:hover .sky__satlabel > span, .sky__sat:focus-visible .sky__satlabel > span { color: var(--c-accent); }
 @media (prefers-reduced-motion: reduce) { .sky__sat i { animation: none; } }
+
+/* Full screen: the Sky / Solar System switch, and the Solar System view itself. */
+.sky__scale { position: absolute; top: var(--gutter); left: 50%; translate: -50% 0; z-index: 2; --c-fg: var(--glass); --c-bg: var(--emulsion); --c-edge: rgb(231 233 230 / 0.5); color: var(--glass); background: rgb(16 18 20 / 0.7); border-radius: var(--pill); }
+.sky__scale button { font-size: 0.75rem; font-weight: 600; padding-inline: 1.1rem; }
+html.sky-leaving .sky__scale { opacity: 0; pointer-events: none; transition: opacity 0.6s ease; }
+.solar { position: absolute; inset: 0; z-index: 1; background: #05070d; outline-offset: -4px; touch-action: none; cursor: grab; }
+.solar:active { cursor: grabbing; }
+.solar__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.solar__tags { position: absolute; inset: 0; pointer-events: none; }
+.solar__tag { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: auto; padding: 0.15rem 0.2rem 0 0.7rem; font-size: 0.75rem; color: var(--glass); text-shadow: 0 0 6px #05070d, 0 0 2px #05070d; white-space: nowrap; }
+.solar__tag--sun { color: #ffd27a; font-weight: 600; }
+.solar__tag:hover, .solar__tag:focus-visible { text-decoration: underline; }
+.solar__mark { position: absolute; left: 0; top: 0; pointer-events: none; }
+.solar__zoom { position: absolute; right: var(--gutter); top: calc(var(--gutter) + 3.25rem); display: grid; border: 1px solid rgb(231 233 230 / 0.5); background: rgb(16 18 20 / 0.7); border-radius: var(--r); overflow: hidden; z-index: 2; }
+.solar__zoom button { width: 2.5rem; height: 2.5rem; color: var(--glass); font-size: 1rem; }
+.solar__zoom button + button { border-top: 1px solid rgb(231 233 230 / 0.25); }
+.solar__zoom button:hover, .solar__zoom button:focus-visible { background: var(--glass); color: var(--emulsion); }
+.solar__key { position: absolute; left: var(--gutter); top: var(--gutter); margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; font-size: 0.75rem; color: var(--glass); pointer-events: none; }
+.solar__key li { display: flex; align-items: center; gap: 0.45rem; }
+.solar__key li::before { content: ''; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--c); }
+.solar__hint { position: absolute; left: var(--gutter); right: 50%; bottom: 1.25rem; margin: 0; font-size: var(--t-s); color: var(--c-muted); text-shadow: 0 0 8px var(--emulsion); pointer-events: none; }
+.solar__hint small { display: block; margin-top: 0.35rem; font-size: 0.6875rem; opacity: 0.75; }
+@media (max-width: 640px) { .sky__scale { top: auto; bottom: 1.25rem; } .solar__hint { display: none; } .solar__key { top: auto; bottom: 4.5rem; } }
