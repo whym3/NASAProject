@@ -1153,3 +1153,19 @@ html.sky-leaving .sky__scale { opacity: 0; pointer-events: none; transition: opa
 .solar[data-state='ready'], .solar[data-state='nogl'] { opacity: 1; }
 .solar[data-leaving] { opacity: 0; pointer-events: none; }
 .solar__zoom[hidden], .solar__hint[hidden] { display: none; }
+
+/* "Explore the full sky": a gold line runs round the button, so it reads as the way in. A ring cut from a
+   turning conic gradient (the mask keeps only a 2px band along the pill's edge). Not shown in full screen. */
+@property --sweep { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+html:not(.sky-full) .sky__tools::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--sweep), transparent 0 62%, rgb(201 146 52 / 0.35) 78%, #e8b44f 93%, #fff1c1 99%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: sky-sweep 3.2s linear infinite;
+}
+@keyframes sky-sweep { to { --sweep: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  html:not(.sky-full) .sky__tools::before { animation: none; background: rgb(232 180 79 / 0.75); }
+}
