@@ -58,10 +58,15 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [full, setFullState] = useState(false);
   const fullRef = useRef(false);
-  // Full screen shows one of two scales: the sky from here, or the Solar System from outside.
-  const [scale, setScaleState] = useState<'sky' | 'solar'>('sky');
-  const scaleRef = useRef<'sky' | 'solar'>('sky');
-  const setScale = useCallback((next: 'sky' | 'solar') => { scaleRef.current = next; setScaleState(next); dirty.current = true; }, []);
+  // Full screen shows one of three scales: the sky from here, the Solar System, or the Milky Way from outside.
+  type Scale = 'sky' | 'solar' | 'galaxy';
+  const [scale, setScaleState] = useState<Scale>('sky');
+  const scaleRef = useRef<Scale>('sky');
+  // The 3D view stays on while it flies back to the Earth and fades into the map; where the map looks, for it to match.
+  const [solarOut, setSolarOut] = useState(false);
+  const endSolar = useCallback(() => setSolarOut(false), [setSolarOut]);
+  const skyLook = useCallback(() => ({ ra: view.current.ra, dec: view.current.dec, fov: view.current.fov }), []);
+  const setScale = useCallback((next: Scale) => { scaleRef.current = next; setScaleState(next); dirty.current = true; }, []);
   const leaving = useRef(false); // the move back out is playing
   const swingTween = useRef<gsap.core.Tween | null>(null);
   const home = useRef<{ ra: number; dec: number; fov: number } | null>(null); // the view full screen began from
@@ -133,7 +138,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
   // Where the pointer is on the sky, written straight to the readout (no re-render per move).
   const track = (e: React.PointerEvent) => {
     const out = readout.current, el = host.current;
-    if (!out || !el || scaleRef.current === 'solar') return;
+    if (!out || !el || scaleRef.current !== 'sky') return;
     const r = el.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const s = toSky(view.current, x, y);
@@ -232,7 +237,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
     let frame = 0, scan = 0;
     const tick = (time: number) => {
       const s = sky.current;
-      if (!s || (!visible && !fullscreen) || document.hidden || scaleRef.current === 'solar') return;
+      if (!s || (!visible && !fullscreen) || document.hidden || scaleRef.current !== 'sky') return;
       if (light && !fullscreen && !dirty.current && frame++ % 2) return;
       const v = view.current;
       // Idle: the sky turns very slowly until someone touches it.
@@ -388,6 +393,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
     if (fullRef.current === next || leaving.current) return;
     if (next) { applyFull(true); return; }
     setScale('sky'); // the sky glides home on the way out
+    setSolarOut(false); // leaving full screen: no flight back, the 3D view just goes
     leaving.current = true;
     // The page's own text fades back in slowly while the sky is still gliding home, so it is
     // already there when the move ends; the menu follows.
@@ -406,7 +412,7 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
       html.classList.remove('sky-leaving');
       setTimeout(() => html.classList.remove('sky-return'), 2400);
     }); // back the way we came, then leave
-  }, [applyFull, swing, setScale]);
+  }, [applyFull, swing, setScale, setSolarOut]);
   useEffect(() => {
     const onFs = () => { if (!document.fullscreenElement) setFull(false); };
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && fullRef.current && !pickRef.current) setFull(false); };
@@ -679,11 +685,15 @@ export function SkyMap({ fresh = [] }: { fresh?: FreshField[] }) {
         </div>
       )}
 
-      {full && scale === 'solar' && <SolarSystem />}
+      {full && (scale !== 'sky' || solarOut) && <SolarSystem view={scale} skyLook={skyLook} onView={setScale} onGone={endSolar} />}
       {full && (
         <div className="seg sky__scale" role="group" aria-label="View">
-          <button type="button" aria-pressed={scale === 'sky'} onClick={() => setScale('sky')}>Sky</button>
+          <button type="button" aria-pressed={scale === 'sky'} onClick={() => {
+            if (scaleRef.current !== 'sky') { setSolarOut(true); touched.current = gsap.ticker.time; } // the map holds still while the 3D view returns to it
+            setScale('sky');
+          }}>Sky</button>
           <button type="button" aria-pressed={scale === 'solar'} onClick={() => { setPick(null); letGo(); setScale('solar'); }}>Solar System</button>
+          <button type="button" aria-pressed={scale === 'galaxy'} onClick={() => { setPick(null); letGo(); setScale('galaxy'); }}>Galaxy</button>
         </div>
       )}
       <div className="sky__tools" role="group" aria-label="Map controls">
